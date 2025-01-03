@@ -34,7 +34,46 @@ class ChatPageProvider extends ChangeNotifier{
   }
 
   void getChats() async {
+    try{
+      _chatStream = _db.getChatsForUser(_auth.user.uid).listen((_snapshot) async{
+        chats =await Future.wait(
+          _snapshot.docs.map((_d) async {
+          Map<String, dynamic> _chatData = _d.data() as  Map<String, dynamic>;
+          //Get Users in Chat
+          List<ChatUser> _members = [];
+          for (var _uid in _chatData["members"]){
+            DocumentSnapshot _userSnapShot = await _db.getUser(_uid);
+            Map<String, dynamic> userDataMap =
+                _userSnapShot.data() as Map<String, dynamic>;
+            _members.add(ChatUser.fromJSON(userDataMap));
+          }
+          //Get last message in Chat
+          List<ChatMessage> messages= [];
+          QuerySnapshot _chatMessage = await _db.getLastMessageForChat(_d.id);
 
+          if(_chatMessage.docs.isNotEmpty){
+            Map<String, dynamic> _messageData = _chatMessage.docs.first.data()! as Map<String, dynamic>;
+            ChatMessage _message = ChatMessage.fromJSON(_messageData);
+            messages.add(_message);
+          }
+
+          //return chat instance
+          return Chat(
+              uid: _d.id,
+              currentUserId: _auth.user.uid,
+              activity: _chatData["is_activity"],
+              group: _chatData["is_group"],
+              members: _members,
+              messages: messages
+          );
+          }).toList(),
+        );
+        notifyListeners();
+      });
+    }
+    catch(e){
+      print(e);
+    }
   }
 
 }
